@@ -1,0 +1,129 @@
+package com.shak.checkconnectivity;
+
+import android.annotation.SuppressLint;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
+import android.os.Bundle;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.content.IntentFilter;
+import android.webkit.WebViewClient;
+
+import androidx.activity.EdgeToEdge;
+import androidx.activity.OnBackPressedCallback;
+import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
+
+public class MainActivity extends AppCompatActivity {
+
+    private AlertDialog connectivityDialog;
+    private NetworkChangeReceiver networkReceiver;
+
+
+    @SuppressLint("SetJavaScriptEnabled")
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        EdgeToEdge.enable(this);
+        setContentView(R.layout.activity_main);
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
+            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
+            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
+            return insets;
+        });
+
+        WebView webView = findViewById(R.id.webView);
+
+        WebSettings webSettings = webView.getSettings();
+        webSettings.setJavaScriptEnabled(true);
+        webView.setWebViewClient(new WebViewClient());
+
+        webView.loadUrl("https://www.flipkart.com/");
+
+        networkReceiver = new NetworkChangeReceiver();
+
+        getOnBackPressedDispatcher().addCallback(new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                if(webView.canGoBack()){
+                    webView.goBack();
+                } else {
+                    finish();
+                }
+            }
+        });
+
+    }
+
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        // Register network change receiver
+        registerReceiver(networkReceiver, new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION));
+
+        // Initial connectivity check
+        if (!isOnline()) {
+            showConnectivityDialog();
+        }
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        // Unregister receiver
+        unregisterReceiver(networkReceiver);
+    }
+
+    // Check Internet connection
+    private boolean isOnline() {
+        ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        if (cm != null) {
+            NetworkInfo netInfo = cm.getActiveNetworkInfo();
+            return netInfo != null && netInfo.isConnected();
+        }
+        return false;
+    }
+
+    // Show "No Internet" dialog
+    private void showConnectivityDialog() {
+        if (connectivityDialog == null) {
+            AlertDialog.Builder builder = new AlertDialog.Builder(this);
+            builder.setTitle("No Internet Connection");
+            builder.setMessage("Please connect to the internet to continue using this app.");
+            builder.setCancelable(false);
+            builder.setPositiveButton("OK", (dialog, which) -> connectivityDialog.dismiss());
+            connectivityDialog = builder.create();
+        }
+
+        if (!connectivityDialog.isShowing()) {
+            connectivityDialog.show();
+        }
+    }
+
+    // Dismiss dialog if online
+    private void dismissConnectivityDialog() {
+        if (connectivityDialog != null && connectivityDialog.isShowing()) {
+            connectivityDialog.dismiss();
+        }
+    }
+
+    // BroadcastReceiver to detect network changes
+    private class NetworkChangeReceiver extends BroadcastReceiver {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (isOnline()) {
+                dismissConnectivityDialog();
+            } else {
+                showConnectivityDialog();
+            }
+        }
+    }
+
+}
